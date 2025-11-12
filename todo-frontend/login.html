@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Todo App</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 40px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .auth-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .auth-header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .auth-header p {
+            color: #666;
+            margin: 0;
+        }
+        .auth-links {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .auth-links a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1>🔐 Login</h1>
+            <p>Welcome back! Please sign in to your account.</p>
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="error-message">
+            <span>{{ error }}</span>
+            <button @click="clearError" class="error-close">&times;</button>
+        </div>
+
+        <!-- Success Message -->
+        <div v-if="success" class="success-message">
+            {{ success }}
+        </div>
+
+        <!-- Loading Indicator -->
+        <div v-if="loading" class="loading">
+            Logging in...
+        </div>
+
+        <!-- Login Form -->
+        <form @submit.prevent="login" v-if="!loading">
+            <div class="form-group">
+                <label class="form-label" for="email">Email *</label>
+                <input 
+                    type="email" 
+                    id="email"
+                    v-model="form.email" 
+                    class="form-input"
+                    placeholder="Enter your email"
+                    required
+                >
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="password">Password *</label>
+                <input 
+                    type="password" 
+                    id="password"
+                    v-model="form.password" 
+                    class="form-input"
+                    placeholder="Enter your password"
+                    required
+                >
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                Login
+            </button>
+        </form>
+
+        <div class="auth-links">
+            <p>Don't have an account? <a href="signup.html">Sign up here</a></p>
+        </div>
+    </div>
+
+    <!-- Vue 2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    
+    <!-- Axios for HTTP requests -->
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    
+    <!-- Logger utility -->
+    <script src="js/logger.js"></script>
+    
+    <!-- Auth service -->
+    <script src="js/auth.js"></script>
+    
+    <!-- Login App -->
+    <script>
+        // Wait for AuthService to be available
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof AuthService === 'undefined') {
+                console.error('AuthService not loaded');
+                return;
+            }
+            new Vue({
+                el: '.auth-container',
+            data: {
+                form: {
+                    email: '',
+                    password: ''
+                },
+                loading: false,
+                error: null,
+                success: null
+            },
+            mounted() {
+                // Check if already logged in
+                if (AuthService.isAuthenticated()) {
+                    this.success = 'Already logged in! Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1000);
+                }
+            },
+            methods: {
+                async login() {
+                    this.loading = true;
+                    this.error = null;
+                    this.success = null;
+
+                    try {
+                        const result = await AuthService.login(this.form.email, this.form.password);
+                        
+                        if (result.success) {
+                            this.success = 'Login successful! Redirecting...';
+                            Logger.info('Login successful', { email: this.form.email });
+                            setTimeout(() => {
+                                window.location.href = 'index.html';
+                            }, 1000);
+                        } else {
+                            this.error = result.message;
+                        }
+                    } catch (error) {
+                        this.error = 'An unexpected error occurred. Please try again.';
+                        Logger.error('Login error', error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                clearError() {
+                    this.error = null;
+                }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

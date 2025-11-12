@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Todo App</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .profile-container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 40px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .profile-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .profile-header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .profile-info {
+            margin-bottom: 30px;
+        }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #333;
+        }
+        .info-value {
+            color: #666;
+        }
+        .profile-actions {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .btn-logout {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        .btn-logout:hover {
+            background: #c82333;
+        }
+        .btn-back {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-back:hover {
+            background: #5a6268;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-container">
+        <div class="profile-header">
+            <h1>👤 User Profile</h1>
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="error-message">
+            <span>{{ error }}</span>
+            <button @click="clearError" class="error-close">&times;</button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div v-if="loading" class="loading">
+            Loading profile...
+        </div>
+
+        <!-- Profile Information -->
+        <div v-if="user && !loading" class="profile-info">
+            <div class="info-item">
+                <span class="info-label">Full Name:</span>
+                <span class="info-value">{{ user.fullName }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Email:</span>
+                <span class="info-value">{{ user.email }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Member Since:</span>
+                <span class="info-value">{{ formatDate(user.createdAt) }}</span>
+            </div>
+        </div>
+
+        <!-- Profile Actions -->
+        <div v-if="user && !loading" class="profile-actions">
+            <button @click="logout" class="btn-logout" :disabled="loading">
+                Logout
+            </button>
+            <a href="index.html" class="btn-back">
+                Back to Todos
+            </a>
+        </div>
+    </div>
+
+    <!-- Vue 2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    
+    <!-- Axios for HTTP requests -->
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    
+    <!-- Logger utility -->
+    <script src="js/logger.js"></script>
+    
+    <!-- Auth service -->
+    <script src="js/auth.js"></script>
+    
+    <!-- Profile App -->
+    <script>
+        // Wait for AuthService to be available
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof AuthService === 'undefined') {
+                console.error('AuthService not loaded');
+                return;
+            }
+            new Vue({
+                el: '.profile-container',
+            data: {
+                user: null,
+                loading: true,
+                error: null
+            },
+            async mounted() {
+                // Check if user is authenticated
+                if (!AuthService.isAuthenticated()) {
+                    Logger.warn('Unauthorized access to profile page');
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                await this.loadProfile();
+            },
+            methods: {
+                async loadProfile() {
+                    this.loading = true;
+                    this.error = null;
+
+                    try {
+                        const result = await AuthService.getProfile();
+                        
+                        if (result.success) {
+                            this.user = result.data;
+                            Logger.info('Profile loaded successfully');
+                        } else {
+                            this.error = result.message;
+                            if (result.message.includes('Session expired')) {
+                                setTimeout(() => {
+                                    window.location.href = 'login.html';
+                                }, 2000);
+                            }
+                        }
+                    } catch (error) {
+                        this.error = 'Failed to load profile. Please try again.';
+                        Logger.error('Profile load error', error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                async logout() {
+                    this.loading = true;
+                    this.error = null;
+
+                    try {
+                        await AuthService.logout();
+                        Logger.info('User logged out from profile page');
+                        window.location.href = 'login.html';
+                    } catch (error) {
+                        this.error = 'Logout failed. Please try again.';
+                        Logger.error('Logout error', error);
+                        this.loading = false;
+                    }
+                },
+                clearError() {
+                    this.error = null;
+                },
+                formatDate(dateString) {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

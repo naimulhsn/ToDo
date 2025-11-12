@@ -1,0 +1,184 @@
+services:
+  # MongoDB service
+  mongodb:
+    image: mongo:7.0
+    container_name: todo-mongodb
+    environment:
+      - MONGO_INITDB_DATABASE=todo-app
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - todo-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Auth service
+  auth-service:
+    build:
+      context: ./todo-auth-api
+      dockerfile: Dockerfile
+    container_name: todo-auth-service
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongodb:27017/todo-auth
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - LOGSTASH_HOST=logstash
+      - LOGSTASH_PORT=5044
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./todo-auth-api/logs:/usr/src/app/logs
+    networks:
+      - todo-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      logstash:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend API service
+  backend:
+    build:
+      context: ./todo-api
+      dockerfile: Dockerfile
+    container_name: todo-backend
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongodb:27017/todo-app
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - LOGSTASH_HOST=logstash
+      - LOGSTASH_PORT=5044
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./todo-api/logs:/usr/src/app/logs
+    networks:
+      - todo-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      logstash:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./todo-frontend
+      dockerfile: Dockerfile
+    container_name: todo-frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - todo-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Elasticsearch service
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: todo-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - todo-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Logstash service
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: todo-logstash
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+      - ./logstash/config:/usr/share/logstash/config
+    ports:
+      - "5044:5044"
+    networks:
+      - todo-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600/_node/stats || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Kibana service
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: todo-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - xpack.security.enabled=false
+    ports:
+      - "5601:5601"
+    networks:
+      - todo-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+networks:
+  todo-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
+  elasticsearch-data:
+    driver: local
+  mongodb-data:
+    driver: local

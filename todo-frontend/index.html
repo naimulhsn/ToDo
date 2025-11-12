@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo App - Vue 2 with Logging</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <div class="header">
+            <h1>📝 Todo Application</h1>
+            <p>Manage your tasks with ease</p>
+            
+            <!-- Navigation Bar -->
+            <nav class="navbar" v-if="user">
+                <div class="nav-container">
+                    <div class="nav-brand">
+                        <span>Welcome, {{ user.fullName }}!</span>
+                    </div>
+                    <div class="nav-menu">
+                        <div class="nav-item dropdown">
+                            <button class="dropdown-toggle" @click="toggleDropdown">
+                                👤 Profile
+                                <span class="dropdown-arrow">▼</span>
+                            </button>
+                            <div class="dropdown-menu" v-show="showDropdown">
+                                <a href="profile.html" class="dropdown-item">View Profile</a>
+                                <button @click="logout" class="dropdown-item logout-btn">Logout</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div v-if="loading" class="loading">
+            Loading
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="error-message">
+            <span>{{ error }}</span>
+            <button @click="clearError" class="error-close">&times;</button>
+        </div>
+
+        <div class="container">
+            <!-- Statistics -->
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number">{{ totalCount }}</div>
+                    <div class="stat-label">Total Tasks</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ pendingCount }}</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ completedCount }}</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+            </div>
+
+            <!-- Add Todo Form -->
+            <div class="card">
+                <h2>Add New Task</h2>
+                <form @submit.prevent="addTodo">
+                    <div class="form-group">
+                        <label class="form-label" for="title">Title *</label>
+                        <input 
+                            type="text" 
+                            id="title"
+                            v-model="newTodo.title" 
+                            class="form-input"
+                            placeholder="Enter task title"
+                            :disabled="loading"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="description">Description</label>
+                        <textarea 
+                            id="description"
+                            v-model="newTodo.description" 
+                            class="form-textarea"
+                            placeholder="Enter task description (optional)"
+                            :disabled="loading"
+                        ></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" :disabled="loading">
+                        Add Task
+                    </button>
+                </form>
+            </div>
+
+            <!-- Todo List -->
+            <div class="card">
+                <h2>Your Tasks</h2>
+                
+                <!-- Empty State -->
+                <div v-if="todos.length === 0" class="empty-state">
+                    <h3>No tasks yet</h3>
+                    <p>Add your first task above to get started!</p>
+                </div>
+
+                <!-- Todo Items -->
+                <ul v-else class="todo-list">
+                    <li 
+                        v-for="todo in todos" 
+                        :key="todo._id" 
+                        class="todo-item"
+                        :class="{ completed: todo.completed }"
+                    >
+                        <!-- View Mode -->
+                        <div v-if="!editingTodo || editingTodo._id !== todo._id">
+                            <div class="todo-header">
+                                <h3 class="todo-title">{{ todo.title }}</h3>
+                                <span 
+                                    class="status-badge" 
+                                    :class="todo.completed ? 'completed' : 'pending'"
+                                >
+                                    {{ todo.completed ? '✓ Completed' : '○ Pending' }}
+                                </span>
+                            </div>
+                            
+                            <p v-if="todo.description" class="todo-description">
+                                {{ todo.description }}
+                            </p>
+                            
+                            <div class="todo-meta">
+                                Created: {{ formatDate(todo.createdAt) }}
+                                <span v-if="todo.updatedAt !== todo.createdAt">
+                                    | Updated: {{ formatDate(todo.updatedAt) }}
+                                </span>
+                            </div>
+                            
+                            <div class="todo-actions">
+                                <button 
+                                    @click="toggleComplete(todo)" 
+                                    class="btn btn-small"
+                                    :class="todo.completed ? 'btn-secondary' : 'btn-success'"
+                                    :disabled="loading"
+                                >
+                                    {{ todo.completed ? '↶ Mark Incomplete' : '✓ Mark Complete' }}
+                                </button>
+                                <button 
+                                    @click="startEdit(todo)" 
+                                    class="btn btn-small btn-secondary"
+                                    :disabled="loading"
+                                >
+                                    ✎ Edit
+                                </button>
+                                <button 
+                                    @click="deleteTodo(todo)" 
+                                    class="btn btn-small btn-danger"
+                                    :disabled="loading"
+                                >
+                                    🗑 Delete
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Edit Mode -->
+                        <div v-else class="edit-form">
+                            <div class="form-group">
+                                <label class="form-label">Title *</label>
+                                <input 
+                                    type="text" 
+                                    v-model="editingTodo.title" 
+                                    class="form-input"
+                                    :disabled="loading"
+                                >
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Description</label>
+                                <textarea 
+                                    v-model="editingTodo.description" 
+                                    class="form-textarea"
+                                    :disabled="loading"
+                                ></textarea>
+                            </div>
+                            <div class="edit-actions">
+                                <button 
+                                    @click="saveEdit" 
+                                    class="btn btn-success"
+                                    :disabled="loading"
+                                >
+                                    💾 Save Changes
+                                </button>
+                                <button 
+                                    @click="cancelEdit" 
+                                    class="btn btn-secondary"
+                                    :disabled="loading"
+                                >
+                                    ✕ Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-10" style="color: white; padding: 20px;">
+            <p>Open the browser console (F12) to see detailed logs</p>
+        </div>
+    </div>
+
+    <!-- Vue 2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    
+    <!-- Axios for HTTP requests -->
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    
+    <!-- Logger utility -->
+    <script src="js/logger.js"></script>
+    
+    <!-- Auth service -->
+    <script src="js/auth.js"></script>
+    
+    <!-- Vue App -->
+    <script src="js/app.js"></script>
+</body>
+</html>
+
