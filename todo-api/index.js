@@ -12,8 +12,10 @@ const { v4: uuidv4 } = require('uuid');
 connectDB();
 
 // Enable CORS for all routes
+// Support environment variable for production (Render, etc.)
+const corsOrigin = process.env.CORS_ORIGIN || true;
 app.use(cors({
-    origin: true, // Allow all origins
+    origin: corsOrigin === 'true' ? true : corsOrigin,
     credentials: true
 }));
 

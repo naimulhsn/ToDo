@@ -2,7 +2,11 @@
  * Authentication utilities for the frontend
  */
 
-const AUTH_SERVICE_URL = 'http://localhost:3001/api/auth';
+// Support environment-based URLs for production deployment
+// URL is set in config.js file
+const AUTH_SERVICE_URL = (typeof window !== 'undefined' && window.AUTH_SERVICE_URL) 
+  ? window.AUTH_SERVICE_URL 
+  : 'http://localhost:3001/api/auth';
 
 // AuthService Class
 class AuthServiceClass {

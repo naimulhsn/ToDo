@@ -3,8 +3,11 @@
  * Main application logic and API integration
  */
 
-// Use external backend URL since frontend runs in browser
-const API_BASE_URL = 'http://localhost:3000/api/todos';
+// Support environment-based URLs for production deployment
+// URL is set in config.js file
+const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL) 
+  ? window.API_BASE_URL 
+  : 'http://localhost:3000/api/todos';
 
 // Initialize Vue app when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {

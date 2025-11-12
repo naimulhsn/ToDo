@@ -44,6 +44,12 @@ class LogstashHttpTransport extends Transport {
   }
 
   async sendToLogstash(logEntry) {
+    // Skip if Logstash is not configured (e.g., in production without ELK)
+    if (!this.logstashHost || !this.logstashPort || 
+        this.logstashHost === 'localhost' && process.env.NODE_ENV === 'production') {
+      return; // Silently skip in production if not configured
+    }
+    
     try {
       await axios.post(this.logstashUrl, logEntry, {
         timeout: 5000,
@@ -53,7 +59,10 @@ class LogstashHttpTransport extends Transport {
       });
     } catch (error) {
       // Log the error but don't throw it
-      console.warn('Logstash HTTP transport error:', error.message);
+      // Only log in development to avoid noise in production
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Logstash HTTP transport error:', error.message);
+      }
     }
   }
 }
